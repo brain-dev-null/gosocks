@@ -27,6 +27,7 @@ func main() {
         }
 
         reader := bufio.NewReader(conn)
+        req := request{"", "", make(map[string]string)}
 
         for {
             message, _ := reader.ReadString('\n')
@@ -41,16 +42,35 @@ func main() {
 
             trimmedMessage := strings.TrimSuffix(message, "\r\n")
 
-            if len(trimmedMessage) > 0 {
-                fmt.Println(trimmedMessage) 
+            if req.method == "" {
+                parseFirstLine(&req, &trimmedMessage)
+            } else if len(trimmedMessage) > 0 {
+                parseHeaderLine(&req, &trimmedMessage)
             } else {
                 log.Println("Read complete, answering")
+                log.Printf("Request: %+v\n", req)
                 writeAnswer(&conn)
                 conn.Close()
                 os.Exit(0)
             }
         }
     }
+}
+
+func parseFirstLine(req *request, line *string) {
+    elems := strings.Split(*line, " ")
+    method := elems[0]
+    path := elems[1]
+
+    req.method = method
+    req.path = path
+}
+
+func parseHeaderLine(req *request, line *string) {
+    elems := strings.Split(*line, ": ")
+    headerName := elems[0]
+    headerValue := elems[1]
+    req.headers[headerName] = headerValue
 }
 
 func writeAnswer(conn *net.Conn) {
@@ -66,4 +86,10 @@ func writeAnswer(conn *net.Conn) {
     if err != nil {
         log.Fatal(err)
     }
+}
+
+type request struct {
+    method string
+    path string
+    headers map[string]string
 }
