@@ -27,7 +27,7 @@ func main() {
 		}
 
 		reader := bufio.NewReader(conn)
-		req := request{"", "", make(map[string]string)}
+		req := request{"", "", make(map[string]string), make(map[string]string)}
 
 		for {
 			message, _ := reader.ReadString('\n')
@@ -47,23 +47,25 @@ func main() {
 			} else if len(trimmedMessage) > 0 {
 				parseHeaderLine(&req, &trimmedMessage)
 			} else {
-				log.Println("Read complete, answering")
-				log.Printf("Request: %+v\n", req)
-				writeAnswer(&conn)
-				conn.Close()
-				os.Exit(0)
+				break
 			}
 		}
+		printRequest(&req)
+		writeAnswer(&conn)
+		conn.Close()
 	}
 }
 
 func parseFirstLine(req *request, line *string) {
 	elems := strings.Split(*line, " ")
 	method := elems[0]
-	path := elems[1]
+	uri := elems[1]
+
+	path, parameters := parseUri(uri)
 
 	req.method = method
 	req.path = path
+	req.parameters = parameters
 }
 
 func parseHeaderLine(req *request, line *string) {
@@ -89,7 +91,51 @@ func writeAnswer(conn *net.Conn) {
 }
 
 type request struct {
-	method  string
-	path    string
-	headers map[string]string
+	method     string
+	path       string
+	parameters map[string]string
+	headers    map[string]string
+}
+
+func printRequest(req *request) {
+	fmt.Println("=== Request Path ====")
+	fmt.Printf("%s %s\n", req.method, req.path)
+
+	fmt.Println("==== Headers ====")
+	for headerName, headerValue := range req.headers {
+		fmt.Printf("%s: %s\n", headerName, headerValue)
+	}
+
+	if len(req.parameters) > 0 {
+		fmt.Println("=== Parameters ===")
+		for paramName, paramValue := range req.parameters {
+			fmt.Printf("%s: %s\n", paramName, paramValue)
+		}
+	}
+}
+
+func parseUri(url string) (string, map[string]string) {
+	elements := strings.SplitN(url, "?", 2)
+	path := elements[0]
+
+	if len(elements) != 2 {
+		return path, make(map[string]string)
+	}
+
+	parameterString := elements[1]
+
+	parameters := make(map[string]string)
+
+	for _, param := range strings.Split(parameterString, "&") {
+		paramElems := strings.SplitN(param, "=", 2)
+
+		if len(paramElems) != 2 {
+			return path, make(map[string]string)
+		}
+
+		parameters[paramElems[0]] = paramElems[1]
+
+	}
+
+	return path, parameters
 }
