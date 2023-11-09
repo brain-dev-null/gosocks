@@ -1,3 +1,3 @@
-module example/gosocks
+module github.com/brain-dev-null/gosocks
 
-go 1.21.1
+go 1.21.3
