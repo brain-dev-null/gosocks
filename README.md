@@ -19,3 +19,8 @@ It should be provide the following features:
 
 I will **attempt** to log my progress in this project in this section.
 
+### 2024-04-21
+
+- Reset repo
+- Implement partial request parsing (missing request content)
+- Created test for request parsing basic case
