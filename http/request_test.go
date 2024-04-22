@@ -64,6 +64,7 @@ hello world
     }
 
     if !slices.Equal(request.Content, []byte(expectedContent)) {
-        t.Errorf("request content is not [%s]. got=%s", expectedContent, string(expectedContent))
+        t.Errorf("request content is not [%s] (%d bytes). got=%s (%d bytes)", 
+            expectedContent, len(expectedContent), string(request.Content), len(request.Content))
     }
 }
