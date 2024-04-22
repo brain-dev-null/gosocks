@@ -2,6 +2,7 @@ package http
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
@@ -75,25 +76,39 @@ func parseRequestProtocol(reader *bufio.Reader) (string, error) {
 func parseRequestHeaders(reader *bufio.Reader) (map[string]string, error) {
 	headers := make(map[string]string)
 
-	scanner := bufio.NewScanner(reader)
+	line, err := readHeaderLine(reader)
+	if err != nil {
+		return nil, err
+	}
 
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if len(line) == 0 {
-			return headers, nil
-		}
-
+	for len(line) != 0 {
 		headerName, headerValue, err := parseHeaderLine(line)
-
 		if err != nil {
 			return nil, err
 		}
 
 		headers[headerName] = headerValue
+
+		line, err = readHeaderLine(reader)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return headers, nil
+}
+
+func readHeaderLine(reader *bufio.Reader) (string, error) {
+	line, err := reader.ReadString('\n')
+
+	if err != nil {
+		if err == io.EOF {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to read header line: %w", err)
+	}
+	line = strings.TrimSpace(line)
+	return line, nil
 }
 
 func parseHeaderLine(line string) (string, string, error) {
@@ -107,9 +122,16 @@ func parseHeaderLine(line string) (string, string, error) {
 }
 
 func parseRequestContent(reader *bufio.Reader) ([]byte, error) {
-	// TODO implement
-	reader.ReadBytes('\n')
-	return nil, nil
+	var buffer bytes.Buffer
+
+	_, err := reader.WriteTo(&buffer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read request content: %w", err)
+	}
+
+	content := buffer.Bytes()
+
+	return content[:len(content)-1], nil
 }
 
 func ParseHttpRequest(rawReader io.Reader) (HttpRequest, error) {
