@@ -24,3 +24,8 @@ I will **attempt** to log my progress in this project in this section.
 - Reset repo
 - Implement partial request parsing (missing request content)
 - Created test for request parsing basic case
+
+### 2024-04-22
+
+- Added request content parsing
+- Added `HttpRequest.String()` function for pretty-printing requests
