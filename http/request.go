@@ -28,6 +28,31 @@ type HttpRequest struct {
 	Content  []byte
 }
 
+func (request HttpRequest) String() string {
+	var buffer bytes.Buffer
+	
+
+	buffer.WriteString(fmt.Sprintf(
+		"%s %s %s\n",
+		request.Method,
+		request.Path,
+		request.Protocol))
+
+
+	for headerName, headerValue := range request.Headers {
+		buffer.WriteString(fmt.Sprintf(
+			"%s: %s\n",
+			headerName,
+			headerValue))
+	}
+
+	buffer.WriteString(fmt.Sprintf(
+		"\n%s\n",
+		string(request.Content)))
+
+	return buffer.String()
+}
+
 func parseRequestMethod(reader *bufio.Reader) (string, error) {
 	method, err := reader.ReadString(' ')
 	if err != nil {
