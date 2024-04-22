@@ -30,14 +30,12 @@ type HttpRequest struct {
 
 func (request HttpRequest) String() string {
 	var buffer bytes.Buffer
-	
 
 	buffer.WriteString(fmt.Sprintf(
 		"%s %s %s\n",
 		request.Method,
 		request.Path,
 		request.Protocol))
-
 
 	for headerName, headerValue := range request.Headers {
 		buffer.WriteString(fmt.Sprintf(
