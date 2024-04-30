@@ -8,18 +8,6 @@ import (
 	"strings"
 )
 
-var validRequestMethods = map[string]bool{
-	"GET":     true,
-	"POST":    true,
-	"PUT":     true,
-	"PATCH":   true,
-	"OPTIONS": true,
-	"HEAD":    true,
-	"DELETE":  true,
-	"CONNECT": true,
-	"TRACE":   true,
-}
-
 type HttpRequest struct {
 	Method   string
 	Path     string
@@ -67,9 +55,28 @@ func parseRequestMethod(reader *bufio.Reader) (string, error) {
 }
 
 func isValidRequestMethod(requestMethod string) bool {
-	_, found := validRequestMethods[requestMethod]
+	switch requestMethod {
+	case "GET":
+		return true
+	case "POST":
+		return true
+	case "PUT":
+		return true
+	case "PATCH":
+		return true
+	case "OPTIONS":
+		return true
+	case "HEAD":
+		return true
+	case "DELETE":
+		return true
+	case "CONNECT":
+		return true
+	case "TRACE":
+		return true
+	}
 
-	return found
+	return false
 }
 
 func parseRequestPath(reader *bufio.Reader) (string, error) {
@@ -153,6 +160,10 @@ func parseRequestContent(reader *bufio.Reader) ([]byte, error) {
 	}
 
 	content := buffer.Bytes()
+
+	if len(content) == 0 {
+		return []byte{}, nil
+	}
 
 	return content[:len(content)-1], nil
 }
