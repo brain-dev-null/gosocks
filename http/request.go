@@ -147,13 +147,13 @@ func readHeaderLine(reader *bufio.Reader) (string, error) {
 }
 
 func parseHeaderLine(line string) (string, string, error) {
-	elems := strings.SplitN(line, ":", 2)
+	headerName, headerValue, ok := strings.Cut(line, ":")
 
-	if len(elems) != 2 {
+	if !ok {
 		return "", "", fmt.Errorf("header line malformed: %s", line)
 	}
 
-	return strings.TrimSpace(elems[0]), strings.TrimSpace(elems[1]), nil
+	return strings.TrimSpace(headerName), strings.TrimSpace(headerValue), nil
 }
 
 func parseRequestContent(reader *bufio.Reader) ([]byte, error) {
