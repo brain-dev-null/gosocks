@@ -129,3 +129,20 @@ Content-Type: text/plain
 			expectedContent, len(expectedContent), string(request.Content), len(request.Content))
 	}
 }
+
+func TestGetRequestPath(t *testing.T) {
+	expectedPath := "/foo/bar/baz"
+	request := HttpRequest{
+		Method:   "GET",
+		Path:     expectedPath + "?x=1&y=abc",
+		Protocol: "HTTP/1.1",
+		Headers:  map[string]string{},
+		Content:  []byte{},
+	}
+
+	path := request.getPath()
+
+	if path != expectedPath {
+		t.Fatalf("path was not %s. got=%s", expectedPath, path)
+	}
+}

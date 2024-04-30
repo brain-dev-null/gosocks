@@ -16,6 +16,11 @@ type HttpRequest struct {
 	Content  []byte
 }
 
+func (request HttpRequest) getPath() string {
+	cleanPath, _, _ := strings.Cut(request.Path, "?")
+	return cleanPath
+}
+
 func (request HttpRequest) String() string {
 	var buffer bytes.Buffer
 
