@@ -19,13 +19,24 @@ It should be provide the following features:
 
 I will **attempt** to log my progress in this project in this section.
 
-### 2024-04-21
+### 2024-05-02
 
-- Reset repo
-- Implement partial request parsing (missing request content)
-- Created test for request parsing basic case
+- Refactor and extend request routing test suite
+- Refactor HttpRequest.Path and HttpRequest.getPath() function
+
+### 2024-04-30
+
+- Refactor request parsing and add convenience method
+- Fix handling of empty request content
+- Add request routing
 
 ### 2024-04-22
 
 - Added request content parsing
 - Added `HttpRequest.String()` function for pretty-printing requests
+
+### 2024-04-21
+
+- Reset repo
+- Implement partial request parsing (missing request content)
+- Created test for request parsing basic case
