@@ -34,7 +34,7 @@ func TestComplexRouter(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		request := HttpRequest{Path: tt.r}
+		request := HttpRequest{FullPath: tt.r}
 		handler, err := router.Route(request)
 
 		if tt.expectedMatch {

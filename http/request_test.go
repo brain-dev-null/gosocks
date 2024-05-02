@@ -37,8 +37,8 @@ hello world
 		t.Errorf("request.Method is not POST. got=%s", request.Method)
 	}
 
-	if request.Path != "/foo/bar" {
-		t.Errorf("request.Path is not /foo/bar. got=%s", request.Path)
+	if request.FullPath != "/foo/bar" {
+		t.Errorf("request.Path is not /foo/bar. got=%s", request.FullPath)
 	}
 
 	if request.Protocol != "HTTP/1.1" {
@@ -98,8 +98,8 @@ Content-Type: text/plain
 		t.Errorf("request.Method is not POST. got=%s", request.Method)
 	}
 
-	if request.Path != "/foo/bar" {
-		t.Errorf("request.Path is not /foo/bar. got=%s", request.Path)
+	if request.FullPath != "/foo/bar" {
+		t.Errorf("request.Path is not /foo/bar. got=%s", request.FullPath)
 	}
 
 	if request.Protocol != "HTTP/1.1" {
@@ -134,13 +134,13 @@ func TestGetRequestPath(t *testing.T) {
 	expectedPath := "/foo/bar/baz"
 	request := HttpRequest{
 		Method:   "GET",
-		Path:     expectedPath + "?x=1&y=abc",
+		FullPath: expectedPath + "?x=1&y=abc",
 		Protocol: "HTTP/1.1",
 		Headers:  map[string]string{},
 		Content:  []byte{},
 	}
 
-	path := request.getPath()
+	path := request.Path()
 
 	if path != expectedPath {
 		t.Fatalf("path was not %s. got=%s", expectedPath, path)

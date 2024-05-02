@@ -17,14 +17,14 @@ type recursiveRouter struct {
 }
 
 func (rr *recursiveRouter) Route(request HttpRequest) (Handler, error) {
-	segments := strings.Split(request.getPath(), "/")
+	segments := strings.Split(request.Path(), "/")
 	if len(segments) > 0 && segments[0] == "" {
 		segments = segments[1:]
 	}
 	handler, _, matched := rr.root.match(segments)
 
 	if !matched {
-		return nil, ErrorNotFound(fmt.Sprintf("No route for: %s", request.getPath()))
+		return nil, ErrorNotFound(fmt.Sprintf("No route for: %s", request.Path()))
 	}
 
 	return handler, nil

@@ -10,14 +10,14 @@ import (
 
 type HttpRequest struct {
 	Method   string
-	Path     string
+	FullPath string
 	Protocol string
 	Headers  map[string]string
 	Content  []byte
 }
 
-func (request HttpRequest) getPath() string {
-	cleanPath, _, _ := strings.Cut(request.Path, "?")
+func (request HttpRequest) Path() string {
+	cleanPath, _, _ := strings.Cut(request.FullPath, "?")
 	return cleanPath
 }
 
@@ -27,7 +27,7 @@ func (request HttpRequest) String() string {
 	buffer.WriteString(fmt.Sprintf(
 		"%s %s %s\n",
 		request.Method,
-		request.Path,
+		request.FullPath,
 		request.Protocol))
 
 	for headerName, headerValue := range request.Headers {
@@ -203,7 +203,7 @@ func ParseHttpRequest(rawReader io.Reader) (HttpRequest, error) {
 	}
 
 	request.Method = method
-	request.Path = path
+	request.FullPath = path
 	request.Protocol = protocol
 	request.Headers = headers
 	request.Content = content
