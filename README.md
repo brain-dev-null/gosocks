@@ -22,7 +22,7 @@ I will **attempt** to log my progress in this project in this section.
 ### 2024-05-02
 
 - Refactor and extend request routing test suite
-- Refactor HttpRequest.Path and HttpRequest.getPath() function
+- Refactor `HttpRequest.Path` and `HttpRequest.getPath()` function
 
 ### 2024-04-30
 
