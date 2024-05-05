@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -57,9 +58,11 @@ func (request HttpRequest) String() string {
 			headerValue))
 	}
 
-	buffer.WriteString(fmt.Sprintf(
-		"\n%s\n",
-		string(request.Content)))
+	if len(request.Content) > 0 {
+		buffer.WriteString(fmt.Sprintf(
+			"\n%s\n",
+			string(request.Content)))
+	}
 
 	return buffer.String()
 }
@@ -176,21 +179,38 @@ func parseHeaderLine(line string) (string, string, error) {
 	return strings.TrimSpace(headerName), strings.TrimSpace(headerValue), nil
 }
 
-func parseRequestContent(reader *bufio.Reader) ([]byte, error) {
-	var buffer bytes.Buffer
+func parseContentLength(headers map[string]string) (int, error) {
+	rawContentLength, exists := headers["Content-Length"]
+	if !exists {
+		return 0, nil
+	}
 
-	_, err := reader.WriteTo(&buffer)
+	contentLength, err := strconv.Atoi(rawContentLength)
+	if err != nil {
+		return -1, fmt.Errorf("failed to parse Content-Length header: %w", err)
+	}
+
+	if contentLength < 0 {
+		return -1, fmt.Errorf("invalid Content-Length: %d", contentLength)
+	}
+
+	return contentLength, nil
+}
+
+func parseRequestContent(reader *bufio.Reader, size int) ([]byte, error) {
+	content := make([]byte, size)
+
+	_, err := reader.Read(content)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to read request content: %w", err)
 	}
-
-	content := buffer.Bytes()
 
 	if len(content) == 0 {
 		return []byte{}, nil
 	}
 
-	return content[:len(content)-1], nil
+	return content, nil
 }
 
 func ParseHttpRequest(rawReader io.Reader) (HttpRequest, error) {
@@ -217,7 +237,12 @@ func ParseHttpRequest(rawReader io.Reader) (HttpRequest, error) {
 		return request, fmt.Errorf("failed to parse request headers: %w", err)
 	}
 
-	content, err := parseRequestContent(bufReader)
+	contentLength, err := parseContentLength(headers)
+	if err != nil {
+		return request, fmt.Errorf("failed to parse content length: %w", err)
+	}
+
+	content, err := parseRequestContent(bufReader, contentLength)
 	if err != nil {
 		return request, fmt.Errorf("failed to read request content: %w", err)
 	}
