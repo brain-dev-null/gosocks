@@ -146,3 +146,36 @@ func TestGetRequestPath(t *testing.T) {
 		t.Fatalf("path was not %s. got=%s", expectedPath, path)
 	}
 }
+
+func TestGetQueryParams(t *testing.T) {
+	request := HttpRequest{
+		Method:   "GET",
+		FullPath: "/foo/bar?a=1&b=2&c=hello&cab",
+		Protocol: "HTTP/1.1",
+		Headers:  map[string]string{},
+		Content:  []byte{}}
+
+	expectedParams := map[string]string{
+		"a": "1",
+		"b": "2",
+		"c": "hello"}
+
+	params := request.GetQueryParams()
+
+	if len(params) > len(expectedParams) {
+		t.Errorf("returned more params then there should. expected=%d, got=%d",
+			len(expectedParams), len(params))
+	}
+
+	for expName, expValue := range expectedParams {
+		param, exists := params[expName]
+		if !exists {
+			t.Errorf("expected parameter %s not found in params", expName)
+			continue
+		}
+
+		if param != expValue {
+			t.Errorf("mismatching param value. expected=%s, got=%s", expValue, param)
+		}
+	}
+}

@@ -21,6 +21,26 @@ func (request HttpRequest) Path() string {
 	return cleanPath
 }
 
+func (request HttpRequest) GetQueryParams() map[string]string {
+	_, paramString, found := strings.Cut(request.FullPath, "?")
+	if !found {
+		return map[string]string{}
+	}
+
+	params := map[string]string{}
+	paramElems := strings.Split(paramString, "&")
+	for _, paramElem := range paramElems {
+		paramName, paramValue, found := strings.Cut(paramElem, "=")
+		if !found {
+			continue
+		}
+
+		params[paramName] = paramValue
+	}
+
+	return params
+}
+
 func (request HttpRequest) String() string {
 	var buffer bytes.Buffer
 
