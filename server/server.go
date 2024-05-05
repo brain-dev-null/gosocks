@@ -80,7 +80,13 @@ func (sever *gosocksServer) handleConnection(conn net.Conn) {
 		}
 	}
 
-	logString := fmt.Sprintf("%s %d %d", request.FullPath, response.StatusCode, duration)
+	logString := fmt.Sprintf(
+		"%s %s %d %d",
+		request.Method,
+		request.FullPath,
+		response.StatusCode,
+		duration)
+
 	log.Println(logString)
 
 	postProcessResponse(&response)
