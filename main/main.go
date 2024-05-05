@@ -35,14 +35,17 @@ func echo(request http.HttpRequest) (http.HttpResponse, error) {
 		return http.HttpResponse{}, http.BadRequest("missing param: last_name")
 	}
 
-	responseMessage := fmt.Sprintf("Hello, %s %s", firstName, lastName)
-	content := []byte(responseMessage)
+	greeting := fmt.Sprintf("Hello, %s %s", firstName, lastName)
+	responseObject := EchoResponse{
+		FirstName: firstName,
+		LastName:  lastName,
+		Greeting:  greeting}
 
-	response := http.HttpResponse{
-		StatusCode: 200,
-		Headers:    map[string]string{},
-		Content:    content,
-	}
+	return http.NewJsonResponse(&responseObject, 200)
+}
 
-	return response, nil
+type EchoResponse struct {
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Greeting  string `json:"greeting"`
 }

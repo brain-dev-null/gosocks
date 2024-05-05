@@ -2,10 +2,14 @@ package http
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 )
 
 const CLRF = "\r\n"
+
+const CONTENT_TYPE_PLAIN = "text/plain"
+const CONTENT_TYPE_JSON = "application/json"
 
 var reasonPhrases = map[int]string{
 	100: "Continue",
@@ -59,6 +63,29 @@ type HttpResponse struct {
 	StatusCode int
 	Headers    map[string]string
 	Content    []byte
+}
+
+func NewPlainTextResponse(content string, statusCode int) HttpResponse {
+	headers := map[string]string{"Content-Type": "text/plain"}
+	return HttpResponse{
+		StatusCode: statusCode,
+		Headers:    headers,
+		Content:    []byte(content)}
+}
+
+func NewJsonResponse(content interface{}, statusCode int) (HttpResponse, error) {
+	headers := map[string]string{"Content-Type": "application/json"}
+	serializedContent, err := json.Marshal(content)
+	if err != nil {
+		return HttpResponse{}, err
+	}
+
+	response := HttpResponse{
+		StatusCode: statusCode,
+		Headers:    headers,
+		Content:    serializedContent}
+
+	return response, nil
 }
 
 func (response HttpResponse) Serialize() []byte {
