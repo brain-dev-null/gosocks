@@ -19,6 +19,13 @@ It should be provide the following features:
 
 I will **attempt** to log my progress in this project in this section.
 
+### 2024-05-05
+
+- Add basic server with async request handling
+- Fix request parsing by relying on `Content-Length` header value when determining the number of bytes to read as the body
+- Response handling + serialization
+- Plaintext + JSON responses
+
 ### 2024-05-02
 
 - Refactor and extend request routing test suite
