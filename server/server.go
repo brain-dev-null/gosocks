@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"github.com/brain-dev-null/gosocks/http"
 )
@@ -11,12 +12,12 @@ import (
 type Server interface {
 	Start() error
 	Stop()
-	SetHttpRoutes(router *http.Router)
+	SetHttpRoutes(router http.Router)
 }
 
 type gosocksServer struct {
 	port       int
-	httpRouter *http.Router
+	httpRouter http.Router
 	running    bool
 }
 
@@ -42,7 +43,7 @@ func (server *gosocksServer) Stop() {
 	server.running = false
 }
 
-func (server *gosocksServer) SetHttpRoutes(router *http.Router) {
+func (server *gosocksServer) SetHttpRoutes(router http.Router) {
 	server.httpRouter = router
 }
 
@@ -62,11 +63,50 @@ func (server *gosocksServer) runLoop(listener net.Listener) {
 
 func (sever *gosocksServer) handleConnection(conn net.Conn) {
 	request, err := http.ParseHttpRequest(conn)
-	log.Printf("\n%s\n", request.String())
+
+	start := time.Now()
+
+	response, err := sever.handleRequest(request)
+
+	duration := time.Now().Sub(start).Microseconds()
 
 	if err != nil {
-		log.Printf("Failed to accept connection: %v\n", err)
+		if httpError, ok := err.(http.HttpError); ok {
+			log.Printf("Error: %s", httpError.Message)
+			response = httpError.ToResponse()
+		} else {
+			log.Printf("Error: %v", err)
+			response = http.InternalServerError("").ToResponse()
+		}
 	}
 
+	logString := fmt.Sprintf("%s %d %d", request.FullPath, response.StatusCode, duration)
+	log.Println(logString)
+
+	postProcessResponse(&response)
+
+	serializedResponse := response.Serialize()
+
+	conn.Write(serializedResponse)
+
 	conn.Close()
+}
+
+func (server *gosocksServer) handleRequest(request http.HttpRequest) (http.HttpResponse, error) {
+	handle, err := server.httpRouter.Route(request)
+	if err != nil {
+		return http.HttpResponse{}, err
+	}
+
+	response, err := handle(request)
+	if err != nil {
+		return http.HttpResponse{}, err
+	}
+
+	return response, nil
+}
+
+func postProcessResponse(response *http.HttpResponse) {
+	contentLength := len(response.Content)
+	response.Headers["Content-Length"] = fmt.Sprintf("%d", contentLength)
 }

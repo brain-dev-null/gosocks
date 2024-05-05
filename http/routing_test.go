@@ -43,7 +43,11 @@ func TestComplexRouter(t *testing.T) {
 				continue
 			}
 
-			response := handler(request)
+			response, err := handler(request)
+			if err != nil {
+				t.Errorf("request handler failed: %v", err)
+				continue
+			}
 			if response.StatusCode != tt.expectedStatus {
 				t.Errorf("status code does not match expected status code %d. got=%d",
 					tt.expectedStatus, response.StatusCode)
@@ -70,7 +74,7 @@ func TestComplexRouter(t *testing.T) {
 }
 
 func buildStatusCodeHandler(statusCode int) Handler {
-	return func(hr HttpRequest) HttpResponse {
-		return HttpResponse{StatusCode: statusCode}
+	return func(hr HttpRequest) (HttpResponse, error) {
+		return HttpResponse{StatusCode: statusCode}, nil
 	}
 }

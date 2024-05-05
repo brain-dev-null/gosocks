@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-type Handler func(HttpRequest) HttpResponse
+type Handler func(HttpRequest) (HttpResponse, error)
 
 type Router interface {
 	Route(request HttpRequest) (Handler, error)
