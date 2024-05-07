@@ -19,6 +19,14 @@ It should be provide the following features:
 
 I will **attempt** to log my progress in this project in this section.
 
+### 2024-05-07
+
+- Begin WebSocket implementation with deserialization of ws frames:
+    - FIN, RSV1-3 flags
+    - Opcode
+    - Masked flag
+    - Payload length
+
 ### 2024-05-05
 
 - Add basic server with async request handling
