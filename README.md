@@ -19,6 +19,11 @@ It should be provide the following features:
 
 I will **attempt** to log my progress in this project in this section.
 
+### 2024-05-10
+
+- Switch from manual bitshifting to encoding/binary for multi-byte int deserialization
+- Deserialize Masking Key
+
 ### 2024-05-07
 
 - Begin WebSocket implementation with deserialization of ws frames:
