@@ -57,3 +57,28 @@ func TestPayloadLengthDeserialization(t *testing.T) {
 		}
 	}
 }
+
+func TestMaskingKeyDeserialization(t *testing.T) {
+	data := []byte{
+		0b10001111,
+		0b11111101,
+		0b10010110,
+		0b11001101,
+		0b00100010,
+		0b01010101,
+	}
+
+	var expectedMaskingKey uint32 = 2530026069
+
+	reader := bufio.NewReader(bytes.NewReader(data))
+	wsFrame, err := DeserialzeWebSocketFrame(reader)
+
+	if err != nil {
+		t.Fatalf("failed to deserialize ws frame: %v", err)
+	}
+
+	if wsFrame.MaskingKey != expectedMaskingKey {
+		t.Fatalf("expected masking key %b. got=%b",
+			expectedMaskingKey, wsFrame.MaskingKey)
+	}
+}

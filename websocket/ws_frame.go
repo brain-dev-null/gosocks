@@ -16,7 +16,7 @@ type WebSocketFrame struct {
 	OpCode        string
 	Masked        bool
 	PayloadLength uint64
-	MaskingKey    int
+	MaskingKey    uint32
 	Payload       []byte
 }
 
@@ -40,6 +40,10 @@ func DeserialzeWebSocketFrame(reader *bufio.Reader) (WebSocketFrame, error) {
 
 	wsFrame.Masked = masked
 	wsFrame.PayloadLength = payloadLength
+
+	maskingKey, err := deserializeMaskingKey(reader)
+
+	wsFrame.MaskingKey = maskingKey
 
 	return wsFrame, nil
 }
@@ -101,4 +105,19 @@ func deserializePayloadLength(reader *bufio.Reader) (bool, uint64, error) {
 
 	return false, 0, fmt.Errorf(
 		"invalid bytesToRead: %d", bytesToRead)
+}
+
+func deserializeMaskingKey(reader *bufio.Reader) (uint32, error) {
+	data := []byte{}
+
+	for i := 0; i < 4; i++ {
+		readByte, err := reader.ReadByte()
+		if err != nil {
+			return 0, err
+		}
+
+		data = append(data, readByte)
+	}
+
+	return binary.BigEndian.Uint32(data), nil
 }
