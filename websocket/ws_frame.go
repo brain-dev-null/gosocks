@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 )
 
@@ -66,33 +67,38 @@ func deserializePayloadLength(reader *bufio.Reader) (bool, uint64, error) {
 	firstBytePayloadLength := firstByte & PAYLOAD_FIRST_BYTE_MASK
 
 	bytesToRead := 0
-	payloadLength := uint64(0)
 
 	if firstBytePayloadLength <= 125 {
-		payloadLength += uint64(firstBytePayloadLength)
-	} else if firstBytePayloadLength == 126 {
+		return masked, uint64(firstBytePayloadLength), nil
+	}
+
+	if firstBytePayloadLength == 126 {
 		bytesToRead = 2
 	} else if firstBytePayloadLength == 127 {
 		bytesToRead = 8
+	} else {
+		return false, 0, fmt.Errorf(
+			"unexpected first byte value: %d", firstBytePayloadLength)
 	}
 
+	bytesArray := []byte{}
+
 	for i := 0; i < bytesToRead; i++ {
-		payloadLength, err = shiftByteAndAdd(payloadLength, reader)
+		nextByte, err := reader.ReadByte()
 		if err != nil {
 			return false, 0, fmt.Errorf(
 				"failed to read byte %d/%d of payload length: %w",
 				i, bytesToRead, err)
 		}
+		bytesArray = append(bytesArray, nextByte)
 	}
 
-	return masked, payloadLength, nil
-}
-
-func shiftByteAndAdd(current uint64, reader *bufio.Reader) (uint64, error) {
-	data, err := reader.ReadByte()
-	if err != nil {
-		return 0, err
+	if bytesToRead == 2 {
+		return masked, uint64(binary.BigEndian.Uint16(bytesArray)), nil
+	} else if bytesToRead == 8 {
+		return masked, uint64(binary.BigEndian.Uint64(bytesArray)), nil
 	}
 
-	return current<<8 + uint64(data), nil
+	return false, 0, fmt.Errorf(
+		"invalid bytesToRead: %d", bytesToRead)
 }
