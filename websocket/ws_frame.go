@@ -13,10 +13,10 @@ const PAYLOAD_FIRST_BYTE_MASK = 0b01111111
 
 type WebSocketFrame struct {
 	Fin           bool
-	OpCode        string
+	OpCode        byte
 	Masked        bool
 	PayloadLength uint64
-	MaskingKey    uint32
+	MaskingKey    []byte
 	Payload       []byte
 }
 
@@ -30,7 +30,7 @@ func DeserialzeWebSocketFrame(reader *bufio.Reader) (WebSocketFrame, error) {
 	}
 
 	wsFrame.Fin = fin
-	wsFrame.OpCode = fmt.Sprintf("%b", opcode)
+	wsFrame.OpCode = opcode
 
 	masked, payloadLength, err := deserializePayloadLength(reader)
 	if err != nil {
@@ -45,19 +45,26 @@ func DeserialzeWebSocketFrame(reader *bufio.Reader) (WebSocketFrame, error) {
 
 	wsFrame.MaskingKey = maskingKey
 
+	payload, err := deserializePayload(reader, wsFrame.MaskingKey, wsFrame.PayloadLength)
+	if err != nil {
+		return wsFrame, fmt.Errorf(
+			"failed to deserialize payload: %w", err)
+	}
+
+	wsFrame.Payload = payload
 	return wsFrame, nil
 }
 
-func deserializeFirstByte(reader *bufio.Reader) (bool, int, error) {
+func deserializeFirstByte(reader *bufio.Reader) (bool, byte, error) {
 	data, err := reader.ReadByte()
 	if err != nil {
-		return false, -1, err
+		return false, 0, err
 	}
 
 	fin := data&FIN_MASK == FIN_MASK
 	opcode := data & OPCODE_MASK
 
-	return fin, int(opcode), nil
+	return fin, opcode, nil
 }
 
 func deserializePayloadLength(reader *bufio.Reader) (bool, uint64, error) {
@@ -107,17 +114,33 @@ func deserializePayloadLength(reader *bufio.Reader) (bool, uint64, error) {
 		"invalid bytesToRead: %d", bytesToRead)
 }
 
-func deserializeMaskingKey(reader *bufio.Reader) (uint32, error) {
+func deserializeMaskingKey(reader *bufio.Reader) ([]byte, error) {
 	data := []byte{}
 
 	for i := 0; i < 4; i++ {
 		readByte, err := reader.ReadByte()
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 
 		data = append(data, readByte)
 	}
 
-	return binary.BigEndian.Uint32(data), nil
+	return data, nil
+}
+
+func deserializePayload(reader *bufio.Reader, maskingKey []byte, payloadLength uint64) ([]byte, error) {
+	payload := []byte{}
+
+	for i := 0; i < int(payloadLength); i++ {
+		data, err := reader.ReadByte()
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize payload byte %d/%d: %w",
+				i, payloadLength, err)
+		}
+
+		payload = append(payload, data^maskingKey[i%4])
+	}
+
+	return payload, nil
 }
