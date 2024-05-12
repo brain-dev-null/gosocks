@@ -40,9 +40,7 @@ type wsConnection struct {
 }
 
 func NewWsConnection(handler WsHandler) func(net.Conn, *bufio.Reader) {
-	log.Printf("creating new ws handler")
 	return func(conn net.Conn, reader *bufio.Reader) {
-		log.Printf("ws handler started")
 		connection := &wsConnection{
 			reader:      reader,
 			connection:  conn,
@@ -69,7 +67,6 @@ func (wsConn *wsConnection) SendBinary(data []byte) error {
 }
 
 func (wsConn *wsConnection) run() {
-	log.Printf("starting ws run")
 	defer wsConn.Close()
 	for !wsConn.closed {
 		err := wsConn.rcvNextMsg()
@@ -81,14 +78,12 @@ func (wsConn *wsConnection) run() {
 }
 
 func (wsconn *wsConnection) rcvNextMsg() error {
-	log.Printf("waiting for next frame")
 	frame, err := DeserialzeWebSocketFrame(wsconn.reader)
 	if err != nil {
 		return err
 	}
 
 	if isCloseFrame(frame) {
-		log.Printf("received close frame")
 		code, err := getStatusCode(frame)
 		if err != nil {
 			return err
@@ -111,7 +106,6 @@ func (wsconn *wsConnection) rcvNextMsg() error {
 	}
 
 	if isUnfragmentedFrame(frame) {
-		log.Printf("received unfragmented frame")
 		if wsconn.partialData != nil {
 			return fmt.Errorf(
 				"expected fragmented message frame, got unfragmented one")
@@ -122,7 +116,6 @@ func (wsconn *wsConnection) rcvNextMsg() error {
 	}
 
 	if isFragmentedStartFrame(frame) {
-		log.Printf("received fragmented start frame")
 		if wsconn.partialData != nil {
 			return fmt.Errorf(
 				"expected continouation frame, got start frame")
@@ -132,7 +125,6 @@ func (wsconn *wsConnection) rcvNextMsg() error {
 	}
 
 	if isFragmentedContinouationFrame(frame) {
-		log.Printf("received fragmented continouation frame")
 		if wsconn.partialData == nil {
 			return fmt.Errorf(
 				"expected start frame, got continouation frame")
@@ -141,7 +133,6 @@ func (wsconn *wsConnection) rcvNextMsg() error {
 	}
 
 	if isFragmentedTerminationFrame(frame) {
-		log.Printf("received fragmented termination frame")
 		if wsconn.partialData == nil {
 			return fmt.Errorf(
 				"expected start frame, got termination frame")
@@ -178,7 +169,6 @@ func isCloseFrame(frame WebSocketFrame) bool {
 }
 
 func getStatusCode(frame WebSocketFrame) (uint16, error) {
-	log.Printf("Payload length: %d(%d)", frame.PayloadLength, len(frame.Payload))
 	if len(frame.Payload) == 0 {
 		return 0, fmt.Errorf("no status code in closing frame payload")
 	}

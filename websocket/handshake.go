@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
 
 	"github.com/brain-dev-null/gosocks/http"
 )
@@ -74,15 +73,11 @@ func Handshake(handshakeRequest http.HttpRequest) (http.HttpResponse, error) {
 }
 
 func generateAcceptHeader(key string) string {
-	log.Printf("Key: %s", key)
 	magicValue := key + MAGIC_NUMBER
-	log.Printf("Magic Value: %s", magicValue)
 	h := sha1.New()
 	io.WriteString(h, magicValue)
 	sha1Hash := h.Sum(nil)
-	log.Printf("Sha1 Hash (%d): %x", len(sha1Hash), sha1Hash)
 	base64Encoded := base64.StdEncoding.WithPadding(base64.StdPadding).EncodeToString(sha1Hash)
-	log.Printf("Base64 Encoded: %s", base64Encoded)
 
 	return base64Encoded
 }

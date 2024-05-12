@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
-	"io"
 )
 
 const FIN_MASK = 0b10000000
@@ -57,7 +56,7 @@ func DeserialzeWebSocketFrame(reader *bufio.Reader) (WebSocketFrame, error) {
 }
 
 func deserializeFirstByte(reader *bufio.Reader) (bool, byte, error) {
-	data, err := readNextByte(reader)
+	data, err := reader.ReadByte()
 	if err != nil {
 		return false, 0, err
 	}
@@ -144,17 +143,4 @@ func deserializePayload(reader *bufio.Reader, maskingKey []byte, payloadLength u
 	}
 
 	return payload, nil
-}
-
-func readNextByte(reader *bufio.Reader) (byte, error) {
-	for {
-		nextByte, err := reader.ReadByte()
-		if err != nil {
-			if err == io.EOF {
-				continue
-			}
-			return 0, err
-		}
-		return nextByte, nil
-	}
 }

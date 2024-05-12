@@ -73,7 +73,6 @@ func (sever *gosocksServer) handleConnection(conn net.Conn) {
 	}
 
 	if isWebSocketUpgradeRequest(request) {
-		log.Printf("detected websocket upgrade")
 		sever.handleWebsocket(request, conn, reader)
 		return
 	}
@@ -113,7 +112,6 @@ func (sever *gosocksServer) handleConnection(conn net.Conn) {
 }
 
 func isWebSocketUpgradeRequest(request http.HttpRequest) bool {
-	log.Printf(request.String())
 	if request.Method != "GET" {
 		return false
 	}
@@ -164,7 +162,6 @@ func (server *gosocksServer) handleWebsocket(initialRequest http.HttpRequest, co
 		log.Printf("not found: %s", initialRequest.Path())
 		return
 	}
-	log.Printf("found handler for: %s", initialRequest.Path())
 
 	handhakeResponse, err := websocket.Handshake(initialRequest)
 	if err != nil {
@@ -179,7 +176,6 @@ func (server *gosocksServer) handleWebsocket(initialRequest http.HttpRequest, co
 		conn.Close()
 		return
 	}
-	log.Printf("sent handshake response")
 
 	handle(conn, reader)
 }
