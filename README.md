@@ -19,6 +19,14 @@ It should be provide the following features:
 
 I will **attempt** to log my progress in this project in this section.
 
+### 2024-05-12
+
+- Complete ws frame deserialization
+- Implement WebSocket handshake
+- Add routing for WebSockets
+
+Receival of WebSocket messages is now functional!
+
 ### 2024-05-10
 
 - Switch from manual bitshifting to encoding/binary for multi-byte int deserialization
