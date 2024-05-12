@@ -213,38 +213,38 @@ func parseRequestContent(reader *bufio.Reader, size int) ([]byte, error) {
 	return content, nil
 }
 
-func ParseHttpRequest(rawReader io.Reader) (HttpRequest, error) {
+func ParseHttpRequest(rawReader io.Reader) (HttpRequest, *bufio.Reader, error) {
 	request := HttpRequest{}
 	bufReader := bufio.NewReader(rawReader)
 
 	method, err := parseRequestMethod(bufReader)
 	if err != nil {
-		return request, fmt.Errorf("failed to parse request method: %w", err)
+		return request, nil, fmt.Errorf("failed to parse request method: %w", err)
 	}
 
 	path, err := parseRequestPath(bufReader)
 	if err != nil {
-		return request, fmt.Errorf("failed to parse request path: %w", err)
+		return request, nil, fmt.Errorf("failed to parse request path: %w", err)
 	}
 
 	protocol, err := parseRequestProtocol(bufReader)
 	if err != nil {
-		return request, fmt.Errorf("failed to parse request protocol: %w", err)
+		return request, nil, fmt.Errorf("failed to parse request protocol: %w", err)
 	}
 
 	headers, err := parseRequestHeaders(bufReader)
 	if err != nil {
-		return request, fmt.Errorf("failed to parse request headers: %w", err)
+		return request, nil, fmt.Errorf("failed to parse request headers: %w", err)
 	}
 
 	contentLength, err := parseContentLength(headers)
 	if err != nil {
-		return request, fmt.Errorf("failed to parse content length: %w", err)
+		return request, nil, fmt.Errorf("failed to parse content length: %w", err)
 	}
 
 	content, err := parseRequestContent(bufReader, contentLength)
 	if err != nil {
-		return request, fmt.Errorf("failed to read request content: %w", err)
+		return request, nil, fmt.Errorf("failed to read request content: %w", err)
 	}
 
 	request.Method = method
@@ -253,5 +253,5 @@ func ParseHttpRequest(rawReader io.Reader) (HttpRequest, error) {
 	request.Headers = headers
 	request.Content = content
 
-	return request, nil
+	return request, bufReader, nil
 }

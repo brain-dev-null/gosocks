@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -63,10 +64,17 @@ func (server *gosocksServer) runLoop(listener net.Listener) {
 }
 
 func (sever *gosocksServer) handleConnection(conn net.Conn) {
-	request, err := http.ParseHttpRequest(conn)
+	request, reader, err := http.ParseHttpRequest(conn)
+	if err != nil {
+		log.Printf("failed to parse http request: %v", err)
+		response := http.BadRequest("").ToResponse().Serialize()
+		conn.Write(response)
+		conn.Close()
+	}
 
-	if request.FullPath[:3] == "wss" {
-		sever.handleWebsocket(request, conn)
+	if isWebSocketUpgradeRequest(request) {
+		log.Printf("detected websocket upgrade")
+		sever.handleWebsocket(request, conn, reader)
 		return
 	}
 
@@ -104,6 +112,33 @@ func (sever *gosocksServer) handleConnection(conn net.Conn) {
 	conn.Close()
 }
 
+func isWebSocketUpgradeRequest(request http.HttpRequest) bool {
+	log.Printf(request.String())
+	if request.Method != "GET" {
+		return false
+	}
+
+	updgradeHeader, exists := request.Headers["Upgrade"]
+	if !exists {
+		return false
+	}
+
+	if updgradeHeader != "websocket" {
+		return false
+	}
+
+	connectionHeader, exists := request.Headers["Connection"]
+	if !exists {
+		return false
+	}
+
+	if connectionHeader != "Upgrade" {
+		return false
+	}
+
+	return true
+}
+
 func (server *gosocksServer) handleRequest(request http.HttpRequest) (http.HttpResponse, error) {
 	handle, err := server.httpRouter.RouteHttpRequest(request)
 	if err != nil {
@@ -123,11 +158,13 @@ func postProcessResponse(response *http.HttpResponse) {
 	response.Headers["Content-Length"] = fmt.Sprintf("%d", contentLength)
 }
 
-func (server *gosocksServer) handleWebsocket(initialRequest http.HttpRequest, conn net.Conn) {
+func (server *gosocksServer) handleWebsocket(initialRequest http.HttpRequest, conn net.Conn, reader *bufio.Reader) {
 	handle, err := server.httpRouter.RouteWebSocket(initialRequest)
 	if err != nil {
 		log.Printf("not found: %s", initialRequest.Path())
+		return
 	}
+	log.Printf("found handler for: %s", initialRequest.Path())
 
 	handhakeResponse, err := websocket.Handshake(initialRequest)
 	if err != nil {
@@ -142,6 +179,7 @@ func (server *gosocksServer) handleWebsocket(initialRequest http.HttpRequest, co
 		conn.Close()
 		return
 	}
+	log.Printf("sent handshake response")
 
-	handle(conn)
+	handle(conn, reader)
 }

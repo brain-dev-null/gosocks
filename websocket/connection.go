@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"net"
 )
 
@@ -38,10 +39,12 @@ type wsConnection struct {
 	handler     WsHandler
 }
 
-func NewWsConnection(handler WsHandler) func(net.Conn) {
-	return func(conn net.Conn) {
+func NewWsConnection(handler WsHandler) func(net.Conn, *bufio.Reader) {
+	log.Printf("creating new ws handler")
+	return func(conn net.Conn, reader *bufio.Reader) {
+		log.Printf("ws handler started")
 		connection := &wsConnection{
-			reader:      bufio.NewReader(conn),
+			reader:      reader,
 			connection:  conn,
 			closed:      false,
 			partialData: nil,
@@ -51,34 +54,41 @@ func NewWsConnection(handler WsHandler) func(net.Conn) {
 }
 
 func (wsConn *wsConnection) Close() error {
-	// Todo implement!
+	// TODO implement!
 	return nil
 }
 
 func (wsConn *wsConnection) SendText(text string) error {
-	// Todo implement!
+	// TODO implement!
 	return nil
 }
 
 func (wsConn *wsConnection) SendBinary(data []byte) error {
-	// Todo implement!
+	// TODO implement!
 	return nil
 }
 
 func (wsConn *wsConnection) run() {
+	log.Printf("starting ws run")
 	defer wsConn.Close()
 	for !wsConn.closed {
-		wsConn.rcvNextMsg()
+		err := wsConn.rcvNextMsg()
+		if err != nil {
+			log.Printf("RECEIVE ERROR: %v", err)
+			return
+		}
 	}
 }
 
 func (wsconn *wsConnection) rcvNextMsg() error {
+	log.Printf("waiting for next frame")
 	frame, err := DeserialzeWebSocketFrame(wsconn.reader)
 	if err != nil {
 		return err
 	}
 
 	if isCloseFrame(frame) {
+		log.Printf("received close frame")
 		code, err := getStatusCode(frame)
 		if err != nil {
 			return err
@@ -101,6 +111,7 @@ func (wsconn *wsConnection) rcvNextMsg() error {
 	}
 
 	if isUnfragmentedFrame(frame) {
+		log.Printf("received unfragmented frame")
 		if wsconn.partialData != nil {
 			return fmt.Errorf(
 				"expected fragmented message frame, got unfragmented one")
@@ -111,6 +122,7 @@ func (wsconn *wsConnection) rcvNextMsg() error {
 	}
 
 	if isFragmentedStartFrame(frame) {
+		log.Printf("received fragmented start frame")
 		if wsconn.partialData != nil {
 			return fmt.Errorf(
 				"expected continouation frame, got start frame")
@@ -120,6 +132,7 @@ func (wsconn *wsConnection) rcvNextMsg() error {
 	}
 
 	if isFragmentedContinouationFrame(frame) {
+		log.Printf("received fragmented continouation frame")
 		if wsconn.partialData == nil {
 			return fmt.Errorf(
 				"expected start frame, got continouation frame")
@@ -128,6 +141,7 @@ func (wsconn *wsConnection) rcvNextMsg() error {
 	}
 
 	if isFragmentedTerminationFrame(frame) {
+		log.Printf("received fragmented termination frame")
 		if wsconn.partialData == nil {
 			return fmt.Errorf(
 				"expected start frame, got termination frame")
@@ -164,10 +178,14 @@ func isCloseFrame(frame WebSocketFrame) bool {
 }
 
 func getStatusCode(frame WebSocketFrame) (uint16, error) {
-	if len(frame.Payload) < 2 {
+	log.Printf("Payload length: %d(%d)", frame.PayloadLength, len(frame.Payload))
+	if len(frame.Payload) == 0 {
 		return 0, fmt.Errorf("no status code in closing frame payload")
 	}
-	return binary.BigEndian.Uint16(frame.Payload[:1]), nil
+	if len(frame.Payload) == 1 {
+		return uint16(frame.Payload[0]), nil
+	}
+	return binary.BigEndian.Uint16(frame.Payload[:2]), nil
 }
 
 func getReason(frame WebSocketFrame) (string, error) {

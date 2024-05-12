@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"strings"
@@ -9,7 +10,7 @@ import (
 )
 
 type HttpHandler func(http.HttpRequest) (http.HttpResponse, error)
-type WebSocketHandler func(net.Conn)
+type WebSocketHandler func(net.Conn, *bufio.Reader)
 
 type Router interface {
 	RouteHttpRequest(request http.HttpRequest) (HttpHandler, error)
@@ -31,7 +32,7 @@ func (rr *recursiveRouter) RouteHttpRequest(request http.HttpRequest) (HttpHandl
 	handler, _, matched := rr.httpRoot.match(segments)
 
 	if !matched {
-		return nil, http.ErrorNotFound(fmt.Sprintf("No route for: %s", request.Path()))
+		return nil, http.ErrorNotFound(fmt.Sprintf("No HTTP route for: %s", request.Path()))
 	}
 
 	return handler, nil
@@ -45,7 +46,7 @@ func (rr *recursiveRouter) RouteWebSocket(request http.HttpRequest) (WebSocketHa
 	handler, _, matched := rr.websocketRoot.match(segments)
 
 	if !matched {
-		return nil, http.ErrorNotFound(fmt.Sprintf("No route for: %s", request.Path()))
+		return nil, http.ErrorNotFound(fmt.Sprintf("No WebSocket route for: %s", request.Path()))
 	}
 
 	return handler, nil
