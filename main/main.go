@@ -6,13 +6,26 @@ import (
 
 	"github.com/brain-dev-null/gosocks/http"
 	"github.com/brain-dev-null/gosocks/server"
+	"github.com/brain-dev-null/gosocks/websocket"
 )
 
 func main() {
 	srv := server.NewServer(8080)
-	routes := http.NewRouter()
+	routes := server.NewRouter()
+	websocketEchoHandler := websocket.WsHandler{
+		OnOpen: func(conn websocket.WsConnection) { log.Println("Connection opened") },
+		OnMessage: func(wme websocket.WsMessageEvent, wc websocket.WsConnection) {
+			msg := string(wme.Data)
+			log.Printf("Received: %s\n", msg)
+		},
+		OnClose: func(wce websocket.WsCloseEvent, wc websocket.WsConnection) {
+			log.Printf("Closed: %d(%s) clean=%t\n", wce.Code, wce.Reason, wce.WasClean)
+		},
+	}
+	websocketEcho := websocket.NewWsConnection(websocketEchoHandler)
 	routes.AddRoute("/greet", echo)
-	srv.SetHttpRoutes(routes)
+	routes.AddWebSocket("/wstest", websocketEcho)
+	srv.SetRoutes(routes)
 	err := srv.Start()
 	if err != nil {
 		log.Panicf("error: %v", err)

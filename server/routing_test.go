@@ -1,7 +1,9 @@
-package http
+package server
 
 import (
 	"testing"
+
+	"github.com/brain-dev-null/gosocks/http"
 )
 
 func TestComplexRouter(t *testing.T) {
@@ -34,8 +36,8 @@ func TestComplexRouter(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		request := HttpRequest{FullPath: tt.r}
-		handler, err := router.Route(request)
+		request := http.HttpRequest{FullPath: tt.r}
+		handler, err := router.RouteHttpRequest(request)
 
 		if tt.expectedMatch {
 			if err != nil {
@@ -59,7 +61,7 @@ func TestComplexRouter(t *testing.T) {
 				continue
 			}
 
-			httpError, ok := err.(HttpError)
+			httpError, ok := err.(http.HttpError)
 			if !ok {
 				t.Errorf("expected routing error of type HttpError. got=%T\n", httpError)
 				continue
@@ -73,8 +75,8 @@ func TestComplexRouter(t *testing.T) {
 	}
 }
 
-func buildStatusCodeHandler(statusCode int) Handler {
-	return func(hr HttpRequest) (HttpResponse, error) {
-		return HttpResponse{StatusCode: statusCode}, nil
+func buildStatusCodeHandler(statusCode int) HttpHandler {
+	return func(hr http.HttpRequest) (http.HttpResponse, error) {
+		return http.HttpResponse{StatusCode: statusCode}, nil
 	}
 }

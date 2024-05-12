@@ -7,17 +7,18 @@ import (
 	"time"
 
 	"github.com/brain-dev-null/gosocks/http"
+	"github.com/brain-dev-null/gosocks/websocket"
 )
 
 type Server interface {
 	Start() error
 	Stop()
-	SetHttpRoutes(router http.Router)
+	SetRoutes(router Router)
 }
 
 type gosocksServer struct {
 	port       int
-	httpRouter http.Router
+	httpRouter Router
 	running    bool
 }
 
@@ -43,7 +44,7 @@ func (server *gosocksServer) Stop() {
 	server.running = false
 }
 
-func (server *gosocksServer) SetHttpRoutes(router http.Router) {
+func (server *gosocksServer) SetRoutes(router Router) {
 	server.httpRouter = router
 }
 
@@ -63,6 +64,11 @@ func (server *gosocksServer) runLoop(listener net.Listener) {
 
 func (sever *gosocksServer) handleConnection(conn net.Conn) {
 	request, err := http.ParseHttpRequest(conn)
+
+	if request.FullPath[:3] == "wss" {
+		sever.handleWebsocket(request, conn)
+		return
+	}
 
 	start := time.Now()
 
@@ -99,7 +105,7 @@ func (sever *gosocksServer) handleConnection(conn net.Conn) {
 }
 
 func (server *gosocksServer) handleRequest(request http.HttpRequest) (http.HttpResponse, error) {
-	handle, err := server.httpRouter.Route(request)
+	handle, err := server.httpRouter.RouteHttpRequest(request)
 	if err != nil {
 		return http.HttpResponse{}, err
 	}
@@ -115,4 +121,27 @@ func (server *gosocksServer) handleRequest(request http.HttpRequest) (http.HttpR
 func postProcessResponse(response *http.HttpResponse) {
 	contentLength := len(response.Content)
 	response.Headers["Content-Length"] = fmt.Sprintf("%d", contentLength)
+}
+
+func (server *gosocksServer) handleWebsocket(initialRequest http.HttpRequest, conn net.Conn) {
+	handle, err := server.httpRouter.RouteWebSocket(initialRequest)
+	if err != nil {
+		log.Printf("not found: %s", initialRequest.Path())
+	}
+
+	handhakeResponse, err := websocket.Handshake(initialRequest)
+	if err != nil {
+		log.Printf("handshake error: %v", err)
+		response := http.BadRequest(err.Error())
+		conn.Write(response.ToResponse().Serialize())
+		return
+	}
+	_, err = conn.Write(handhakeResponse.Serialize())
+	if err != nil {
+		log.Printf("error sending handshake response: %v", err)
+		conn.Close()
+		return
+	}
+
+	handle(conn)
 }
