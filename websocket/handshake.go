@@ -12,64 +12,68 @@ import (
 const MAGIC_NUMBER = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 func Handshake(handshakeRequest http.HttpRequest) (http.HttpResponse, error) {
-	handshakeResponse := http.HttpResponse{}
+	handshakeResponse := http.HttpResponse{StatusCode: 101, Content: []byte{}}
+
 	if handshakeRequest.Method != "GET" {
 		return handshakeResponse, fmt.Errorf(
 			"handshake error: unexpected method. got=%s",
 			handshakeRequest.Method)
 	}
 
-	updgradeHeader, exists := handshakeRequest.Headers["Upgrade"]
-	if !exists {
-		return handshakeResponse, fmt.Errorf(
-			"handshake error: missing Upgrade header")
+	err := expectHeaderValue("Upgrade", "websocket", handshakeRequest)
+	if err != nil {
+		return handshakeResponse, err
 	}
 
-	if updgradeHeader != "websocket" {
-		return handshakeResponse, fmt.Errorf(
-			"handshake error: unexpexted Upgrade header value. got=%s",
-			updgradeHeader)
+	err = expectHeaderValue("Connection", "Upgrade", handshakeRequest)
+	if err != nil {
+		return handshakeResponse, err
 	}
 
-	connectionHeader, exists := handshakeRequest.Headers["Connection"]
-	if !exists {
-		return handshakeResponse, fmt.Errorf(
-			"handshake error: missing Connection header")
+	secWebsocketKey, err := expectHeaderValuePresent("Sec-WebSocket-Key", handshakeRequest)
+	if err != nil {
+		return handshakeResponse, err
 	}
 
-	if connectionHeader != "Upgrade" {
-		return handshakeResponse, fmt.Errorf(
-			"handshake error: unexpected Connection header value. got=%s",
-			connectionHeader)
+	err = expectHeaderValue("Sec-WebSocket-Version", "13", handshakeRequest)
+	if err != nil {
+		return handshakeResponse, err
 	}
 
-	secWebsocketKey, exists := handshakeRequest.Headers["Sec-WebSocket-Key"]
-	if !exists {
-		return handshakeResponse, fmt.Errorf(
-			"handshake error: missing Sec-WebSocket-Key header")
-	}
-
-	secWebsocketVersion, exists := handshakeRequest.Headers["Sec-WebSocket-Version"]
-	if !exists {
-		return handshakeResponse, fmt.Errorf(
-			"handshake error: missing Sec-WebSocket-Version header")
-	}
-	if secWebsocketVersion != "13" {
-		return handshakeResponse, fmt.Errorf(
-			"handshake error: unexptected Sec-WebSocket-Version value. got=%s",
-			secWebsocketVersion)
-	}
-
-	responseHeaders := map[string]string{
-		"Upgrade":              "websocket",
-		"Connection":           "upgrade",
-		"Sec-WebSocket-Accept": generateAcceptHeader(secWebsocketKey)}
-
-	handshakeResponse.StatusCode = 101
-	handshakeResponse.Headers = responseHeaders
-	handshakeRequest.Content = []byte{}
+	handshakeResponse.Headers = generateResponseHeaders(secWebsocketKey)
 
 	return handshakeResponse, nil
+}
+
+func expectHeaderValue(headerName string, expectedValue string, request http.HttpRequest) error {
+	value, err := expectHeaderValuePresent(headerName, request)
+
+	if err != nil {
+		return err
+	}
+
+	if value != expectedValue {
+		return fmt.Errorf(
+			"handshake error: unexpected %s value. got=%s", headerName, value)
+	}
+
+	return nil
+}
+
+func expectHeaderValuePresent(headerName string, request http.HttpRequest) (string, error) {
+	value, exists := request.Headers[headerName]
+	if !exists {
+		return "", fmt.Errorf("handshake error: missing Sec-WebSocket-Version header")
+	}
+
+	return value, nil
+}
+
+func generateResponseHeaders(key string) map[string]string {
+	return map[string]string{
+		"Upgrade":              "websocket",
+		"Connection":           "upgrade",
+		"Sec-WebSocket-Accept": generateAcceptHeader(key)}
 }
 
 func generateAcceptHeader(key string) string {
