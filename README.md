@@ -19,6 +19,14 @@ It should be provide the following features:
 
 I will **attempt** to log my progress in this project in this section.
 
+### 2024-05-13
+
+- Implement ws frame serialization
+- Implement close, ping, and pong frames
+- Implement pong responses on pings
+
+Python websockets does not crash anymore due to failing keepalive!
+
 ### 2024-05-12
 
 - Complete ws frame deserialization
