@@ -91,11 +91,14 @@ func NewJsonResponse(content interface{}, statusCode int) (HttpResponse, error) 
 func (response HttpResponse) Serialize() []byte {
 	var buffer bytes.Buffer
 
-	status := getStatus(response.StatusCode)
+	status := GetStatus(response.StatusCode)
 	statusLine := fmt.Sprintf("HTTP/1.1 %s", status)
 
 	buffer.WriteString(statusLine)
 	buffer.WriteString(CLRF)
+
+	contentLength := len(response.Content)
+	response.Headers["Content-Length"] = fmt.Sprintf("%d", contentLength)
 
 	for headerName, headerValue := range response.Headers {
 		headerLine := fmt.Sprintf("%s: %s", headerName, headerValue)
@@ -109,7 +112,7 @@ func (response HttpResponse) Serialize() []byte {
 	return buffer.Bytes()
 }
 
-func getStatus(statusCode int) string {
+func GetStatus(statusCode int) string {
 	phrase, exists := reasonPhrases[statusCode]
 	if !exists {
 		return fmt.Sprintf("%d", statusCode)

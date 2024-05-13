@@ -64,6 +64,7 @@ func (server *gosocksServer) runLoop(listener net.Listener) {
 }
 
 func (sever *gosocksServer) handleConnection(conn net.Conn) {
+	start := time.Now()
 	request, reader, err := http.ParseHttpRequest(conn)
 	if err != nil {
 		log.Printf("failed to parse http request: %v", err)
@@ -73,15 +74,13 @@ func (sever *gosocksServer) handleConnection(conn net.Conn) {
 	}
 
 	if isWebSocketUpgradeRequest(request) {
-		sever.handleWebsocket(request, conn, reader)
+		sever.handleWebsocket(request, conn, reader, start)
 		return
 	}
 
-	start := time.Now()
-
 	response, err := sever.handleRequest(request)
 
-	duration := time.Now().Sub(start).Microseconds()
+	duration := time.Now().Sub(start)
 
 	if err != nil {
 		if httpError, ok := err.(http.HttpError); ok {
@@ -93,16 +92,7 @@ func (sever *gosocksServer) handleConnection(conn net.Conn) {
 		}
 	}
 
-	logString := fmt.Sprintf(
-		"%s %s %d %d",
-		request.Method,
-		request.FullPath,
-		response.StatusCode,
-		duration)
-
-	log.Println(logString)
-
-	postProcessResponse(&response)
+	accessLog(request, response, duration)
 
 	serializedResponse := response.Serialize()
 
@@ -156,7 +146,7 @@ func postProcessResponse(response *http.HttpResponse) {
 	response.Headers["Content-Length"] = fmt.Sprintf("%d", contentLength)
 }
 
-func (server *gosocksServer) handleWebsocket(initialRequest http.HttpRequest, conn net.Conn, reader *bufio.Reader) {
+func (server *gosocksServer) handleWebsocket(initialRequest http.HttpRequest, conn net.Conn, reader *bufio.Reader, start time.Time) {
 	handle, err := server.httpRouter.RouteWebSocket(initialRequest)
 	if err != nil {
 		log.Printf("not found: %s", initialRequest.Path())
@@ -171,11 +161,25 @@ func (server *gosocksServer) handleWebsocket(initialRequest http.HttpRequest, co
 		return
 	}
 	_, err = conn.Write(handhakeResponse.Serialize())
+
+	duration := time.Now().Sub(start)
+
 	if err != nil {
 		log.Printf("error sending handshake response: %v", err)
 		conn.Close()
 		return
 	}
 
-	handle(conn, reader)
+	accessLog(initialRequest, handhakeResponse, duration)
+
+	go handle(conn, reader)
+}
+
+func accessLog(request http.HttpRequest, response http.HttpResponse, duration time.Duration) {
+	log.Printf(
+		"%s %s %s %d\n",
+		request.Method,
+		request.FullPath,
+		http.GetStatus(response.StatusCode),
+		duration.Microseconds())
 }

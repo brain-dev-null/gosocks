@@ -21,6 +21,9 @@ func main() {
 		OnClose: func(wce websocket.WsCloseEvent, wc websocket.WsConnection) {
 			log.Printf("Closed: %d(%s) clean=%t\n", wce.Code, wce.Reason, wce.WasClean)
 		},
+		OnError: func(err error, conn websocket.WsConnection) {
+			log.Printf("Error: %s\n", err.Error())
+		},
 	}
 	websocketEcho := websocket.NewWsConnection(websocketEchoHandler)
 	routes.AddRoute("/greet", echo)

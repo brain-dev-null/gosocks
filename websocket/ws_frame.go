@@ -2,8 +2,11 @@ package websocket
 
 import (
 	"bufio"
+	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"math/big"
 )
 
 const FIN_MASK = 0b10000000
@@ -11,13 +14,75 @@ const MASKED_MASK = 0b10000000
 const OPCODE_MASK = 0b00001111
 const PAYLOAD_FIRST_BYTE_MASK = 0b01111111
 
+const OPCODE_CLOSE = 0x8
+const OPCODE_PING = 0x9
+const OPCODE_PONG = 0xA
+
 type WebSocketFrame struct {
-	Fin           bool
-	OpCode        byte
-	Masked        bool
-	PayloadLength uint64
-	MaskingKey    []byte
-	Payload       []byte
+	Fin        bool
+	OpCode     byte
+	Masked     bool
+	MaskingKey []byte
+	Payload    []byte
+}
+
+func (frame WebSocketFrame) String() string {
+	var buffer bytes.Buffer
+
+	fin, masked := 0, 0
+	if frame.Fin {
+		fin = 1
+	}
+	if frame.Masked {
+		masked = 1
+	}
+
+	buffer.WriteString(fmt.Sprintf("FIN=%d\n", fin))
+	buffer.WriteString(fmt.Sprintf("OPCODE=%x\n", frame.OpCode))
+	buffer.WriteString(fmt.Sprintf("MASKED=%d\n", masked))
+	buffer.WriteString(fmt.Sprintf("PAYLOAD_LEN=%d\n", len(frame.Payload)))
+	buffer.WriteString(fmt.Sprintf("MASKING_KEY=%b\n", frame.MaskingKey))
+	buffer.WriteString(fmt.Sprintf("PAYLOAD=%x\n", frame.Payload))
+
+	return buffer.String()
+}
+
+func NewCloseFrame(statusCode uint16, reason string, masked bool) WebSocketFrame {
+	payload := make([]byte, 125)
+	statusCodeBytes := binary.BigEndian.AppendUint16(make([]byte, 2), statusCode)
+	reasonBytes := []byte(reason)
+
+	copy(payload, statusCodeBytes)
+	copy(payload[2:], reasonBytes)
+
+	return generateControlFrame(OPCODE_CLOSE, masked, payload)
+}
+
+func NewPingFrame(data []byte, masked bool) WebSocketFrame {
+	return generateControlFrame(OPCODE_PING, masked, data)
+}
+
+func NewPongFrame(data []byte, masked bool) WebSocketFrame {
+	return generateControlFrame(OPCODE_PONG, masked, data)
+}
+
+func generateControlFrame(opCode byte, masked bool, data []byte) WebSocketFrame {
+	if len(data) > 125 {
+		data = data[:124]
+	}
+
+	var maskingKey []byte
+	if masked {
+		maskingKey = generateMaskingKey()
+	}
+
+	return WebSocketFrame{
+		Fin:        true,
+		OpCode:     opCode,
+		Masked:     masked,
+		MaskingKey: maskingKey,
+		Payload:    data,
+	}
 }
 
 func DeserialzeWebSocketFrame(reader *bufio.Reader) (WebSocketFrame, error) {
@@ -39,13 +104,13 @@ func DeserialzeWebSocketFrame(reader *bufio.Reader) (WebSocketFrame, error) {
 	}
 
 	wsFrame.Masked = masked
-	wsFrame.PayloadLength = payloadLength
 
 	maskingKey, err := deserializeMaskingKey(reader)
 
 	wsFrame.MaskingKey = maskingKey
 
-	payload, err := deserializePayload(reader, wsFrame.MaskingKey, wsFrame.PayloadLength)
+	payload, err := deserializePayload(reader, wsFrame.MaskingKey, payloadLength)
+
 	if err != nil {
 		return wsFrame, fmt.Errorf(
 			"failed to deserialize payload: %w", err)
@@ -143,4 +208,60 @@ func deserializePayload(reader *bufio.Reader, maskingKey []byte, payloadLength u
 	}
 
 	return payload, nil
+}
+
+func (frame WebSocketFrame) Serialize() []byte {
+	var buffer bytes.Buffer
+
+	var firstByte byte = 0
+	if frame.Fin {
+		firstByte = FIN_MASK
+	}
+
+	firstByte |= frame.OpCode
+
+	buffer.WriteByte(firstByte)
+
+	payloadLength := generatePayloadLength(frame)
+	if frame.Masked {
+		payloadLength[0] |= MASKED_MASK
+	}
+
+	buffer.Write(payloadLength)
+
+	if frame.Masked {
+		buffer.Write(frame.MaskingKey)
+	}
+
+	for i, payloadByte := range frame.Payload {
+		if frame.Masked {
+			payloadByte = payloadByte ^ frame.MaskingKey[i%4]
+		}
+		buffer.WriteByte(payloadByte)
+	}
+
+	return buffer.Bytes()
+}
+
+func generatePayloadLength(frame WebSocketFrame) []byte {
+	length := len(frame.Payload)
+
+	if length <= 125 {
+		return []byte{byte(length)}
+	}
+
+	if length < 635536 {
+		buffer := []byte{126}
+		return binary.BigEndian.AppendUint16(buffer, uint16(length))
+	}
+
+	buffer := []byte{127}
+	return binary.BigEndian.AppendUint64(buffer, uint64(length))
+}
+
+func generateMaskingKey() []byte {
+	maskingKey := make([]byte, 4)
+	maskingKeyValue, _ := rand.Int(rand.Reader, big.NewInt(4294967296))
+	maskingKeyValue.FillBytes(maskingKey)
+	return maskingKey
 }

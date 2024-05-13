@@ -8,11 +8,13 @@ import (
 	"net"
 )
 
+const STATUS_INTERNAL_SERVER_ERROR uint16 = 1011
+
 type WsHandler struct {
-	OnOpen    func(WsConnection)
-	OnMessage func(WsMessageEvent, WsConnection)
-	OnClose   func(WsCloseEvent, WsConnection)
-	OnError   func(WsConnection)
+	OnOpen    func(conn WsConnection)
+	OnMessage func(event WsMessageEvent, conn WsConnection)
+	OnClose   func(event WsCloseEvent, conn WsConnection)
+	OnError   func(err error, conn WsConnection)
 }
 
 type WsMessageEvent struct {
@@ -26,9 +28,11 @@ type WsCloseEvent struct {
 }
 
 type WsConnection interface {
-	Close() error
-	SendText(string) error
-	SendBinary([]byte) error
+	Ping() error
+	Pong(pingData []byte) error
+	Close(statusCode uint16, reason string) error
+	SendText(text string) error
+	SendBinary(data []byte) error
 }
 
 type wsConnection struct {
@@ -37,22 +41,72 @@ type wsConnection struct {
 	closed      bool
 	partialData []byte
 	handler     WsHandler
+	isClient    bool
 }
 
 func NewWsConnection(handler WsHandler) func(net.Conn, *bufio.Reader) {
 	return func(conn net.Conn, reader *bufio.Reader) {
-		connection := &wsConnection{
+		connection := wsConnection{
 			reader:      reader,
 			connection:  conn,
 			closed:      false,
 			partialData: nil,
-			handler:     handler}
-		go connection.run()
+			handler:     handler,
+			isClient:    false}
+		handler.OnOpen(&connection)
+		connection.run()
 	}
 }
 
-func (wsConn *wsConnection) Close() error {
-	// TODO implement!
+func (wsConn *wsConnection) Close(statusCode uint16, reason string) error {
+	defer wsConn.connection.Close()
+
+	wsConn.closed = true
+	closeFrame := NewCloseFrame(statusCode, reason, wsConn.isClient)
+	_, err := wsConn.connection.Write(closeFrame.Serialize())
+
+	if err != nil {
+		err := fmt.Errorf("failed to send close frame: %w", err)
+		event := WsCloseEvent{Code: statusCode, Reason: reason, WasClean: false}
+		log.Println(err.Error())
+		go wsConn.handler.OnClose(event, wsConn)
+		return err
+	}
+
+	event := WsCloseEvent{Code: statusCode, Reason: reason, WasClean: true}
+	go wsConn.handler.OnClose(event, wsConn)
+
+	return nil
+}
+
+func (wsConn *wsConnection) Ping() error {
+	pongFrame := NewPingFrame([]byte{}, false)
+	data := pongFrame.Serialize()
+
+	_, err := wsConn.connection.Write(data)
+
+	if err != nil {
+		err := fmt.Errorf("failed to send ping frame: %w", err)
+		log.Println(err.Error())
+		go wsConn.handleInternalError(err)
+		return err
+	}
+
+	return nil
+}
+
+func (wsConn *wsConnection) Pong(pingData []byte) error {
+	pongFrame := NewPongFrame(pingData, false)
+	data := pongFrame.Serialize()
+
+	_, err := wsConn.connection.Write(data)
+
+	if err != nil {
+		log.Printf("failed to send pong frame: %v", err)
+		wsConn.handleInternalError(err)
+		return err
+	}
+
 	return nil
 }
 
@@ -67,84 +121,94 @@ func (wsConn *wsConnection) SendBinary(data []byte) error {
 }
 
 func (wsConn *wsConnection) run() {
-	defer wsConn.Close()
+	defer wsConn.connection.Close()
 	for !wsConn.closed {
-		err := wsConn.rcvNextMsg()
-		if err != nil {
-			log.Printf("RECEIVE ERROR: %v", err)
-			return
-		}
+		wsConn.rcvNextMsg()
 	}
 }
 
-func (wsconn *wsConnection) rcvNextMsg() error {
+func (wsconn *wsConnection) rcvNextMsg() {
 	frame, err := DeserialzeWebSocketFrame(wsconn.reader)
 	if err != nil {
-		return err
+		err := fmt.Errorf("failed to deserialize next frame: %w", err)
+		wsconn.handleInternalError(err)
+		return
 	}
 
 	if isCloseFrame(frame) {
+		log.Println("Received close frame")
 		code, err := getStatusCode(frame)
 		if err != nil {
-			return err
+			wsconn.handleInternalError(err)
+			return
 		}
 		reason, err := getReason(frame)
 		if err != nil {
-			return err
+			wsconn.handleInternalError(err)
+			return
 		}
 
-		event := WsCloseEvent{Code: code, Reason: reason, WasClean: true}
-		err = wsconn.connection.Close()
-		if err != nil {
-			event.WasClean = false
-		}
-		wsconn.closed = true
+		wsconn.Close(code, reason)
+		return
+	}
 
-		go wsconn.handler.OnClose(event, wsconn)
+	if isPingFrame(frame) {
+		wsconn.Pong(frame.Payload)
+		return
+	}
 
-		return err
+	if isPongFrame(frame) {
+		return
 	}
 
 	if isUnfragmentedFrame(frame) {
 		if wsconn.partialData != nil {
-			return fmt.Errorf(
+			err := fmt.Errorf(
 				"expected fragmented message frame, got unfragmented one")
+			wsconn.handleInternalError(err)
+			return
 		}
 		event := WsMessageEvent{Data: frame.Payload}
-		go wsconn.handler.OnMessage(event, wsconn)
-		return nil
+		wsconn.handler.OnMessage(event, wsconn)
+		return
 	}
 
 	if isFragmentedStartFrame(frame) {
 		if wsconn.partialData != nil {
-			return fmt.Errorf(
+			err := fmt.Errorf(
 				"expected continouation frame, got start frame")
+			wsconn.handleInternalError(err)
+			return
 		}
 		wsconn.partialData = frame.Payload
-		return nil
+		return
 	}
 
 	if isFragmentedContinouationFrame(frame) {
 		if wsconn.partialData == nil {
-			return fmt.Errorf(
+			err := fmt.Errorf(
 				"expected start frame, got continouation frame")
+			wsconn.handleInternalError(err)
+			return
 		}
 		wsconn.partialData = append(wsconn.partialData, frame.Payload...)
 	}
 
 	if isFragmentedTerminationFrame(frame) {
 		if wsconn.partialData == nil {
-			return fmt.Errorf(
+			err := fmt.Errorf(
 				"expected start frame, got termination frame")
+			wsconn.handleInternalError(err)
+			return
 		}
 		fullData := append(wsconn.partialData, frame.Payload...)
 		wsconn.partialData = nil
 		event := WsMessageEvent{Data: fullData}
-		go wsconn.handler.OnMessage(event, wsconn)
-		return nil
+		wsconn.handler.OnMessage(event, wsconn)
+		return
 	}
 
-	return fmt.Errorf("unexpected frame type: fin=%t opcode=%d",
+	log.Printf("unexpected frame type: fin=%t opcode=%d",
 		frame.Fin, frame.OpCode)
 }
 
@@ -165,7 +229,15 @@ func isFragmentedTerminationFrame(msg WebSocketFrame) bool {
 }
 
 func isCloseFrame(frame WebSocketFrame) bool {
-	return frame.OpCode == 8
+	return frame.OpCode == OPCODE_CLOSE
+}
+
+func isPingFrame(frame WebSocketFrame) bool {
+	return frame.OpCode == OPCODE_PING
+}
+
+func isPongFrame(frame WebSocketFrame) bool {
+	return frame.OpCode == OPCODE_PONG
 }
 
 func getStatusCode(frame WebSocketFrame) (uint16, error) {
@@ -185,4 +257,9 @@ func getReason(frame WebSocketFrame) (string, error) {
 	reasonData := frame.Payload[2:]
 
 	return string(reasonData), nil
+}
+
+func (wsConn *wsConnection) handleInternalError(err error) {
+	go wsConn.handler.OnError(err, wsConn)
+	wsConn.Close(STATUS_INTERNAL_SERVER_ERROR, "")
 }
