@@ -16,6 +16,11 @@ func main() {
 		OnOpen: func(conn websocket.WsConnection) { log.Println("Connection opened") },
 		OnMessage: func(wme websocket.WsMessageEvent, wc websocket.WsConnection) {
 			msg := string(wme.Data)
+			if msg == "bye" {
+				log.Println("closing now")
+				wc.Close(1000, "client closed")
+				return
+			}
 			response := fmt.Sprintf("received: %s", msg)
 			log.Println(response)
 			wc.SendText(response)

@@ -48,14 +48,12 @@ func (frame WebSocketFrame) String() string {
 }
 
 func NewCloseFrame(statusCode uint16, reason string, masked bool) WebSocketFrame {
-	payload := make([]byte, 125)
-	statusCodeBytes := binary.BigEndian.AppendUint16(make([]byte, 2), statusCode)
-	reasonBytes := []byte(reason)
+	var buffer bytes.Buffer
 
-	copy(payload, statusCodeBytes)
-	copy(payload[2:], reasonBytes)
+	buffer.Write(binary.BigEndian.AppendUint16([]byte{}, statusCode))
+	buffer.WriteString(reason)
 
-	return generateControlFrame(OPCODE_CLOSE, masked, payload)
+	return generateControlFrame(OPCODE_CLOSE, masked, buffer.Bytes())
 }
 
 func NewPingFrame(data []byte, masked bool) WebSocketFrame {

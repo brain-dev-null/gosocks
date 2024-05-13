@@ -10,6 +10,10 @@ import (
 
 const STATUS_INTERNAL_SERVER_ERROR uint16 = 1011
 
+const STATE_OPEN = "open"
+const STATE_CLOSING = "closing"
+const STATE_CLOSED = "closed"
+
 type WsHandler struct {
 	OnOpen    func(conn WsConnection)
 	OnMessage func(event WsMessageEvent, conn WsConnection)
@@ -38,10 +42,10 @@ type WsConnection interface {
 type wsConnection struct {
 	reader      *bufio.Reader
 	connection  net.Conn
-	closed      bool
 	partialData []byte
 	handler     WsHandler
 	isClient    bool
+	state       string
 }
 
 func NewWsConnection(handler WsHandler) func(net.Conn, *bufio.Reader) {
@@ -49,10 +53,10 @@ func NewWsConnection(handler WsHandler) func(net.Conn, *bufio.Reader) {
 		connection := wsConnection{
 			reader:      reader,
 			connection:  conn,
-			closed:      false,
 			partialData: nil,
 			handler:     handler,
-			isClient:    false}
+			isClient:    false,
+			state:       STATE_OPEN}
 		handler.OnOpen(&connection)
 		connection.run()
 	}
@@ -61,7 +65,18 @@ func NewWsConnection(handler WsHandler) func(net.Conn, *bufio.Reader) {
 func (wsConn *wsConnection) Close(statusCode uint16, reason string) error {
 	defer wsConn.connection.Close()
 
-	wsConn.closed = true
+	if wsConn.state == STATE_CLOSING {
+		wsConn.state = STATE_CLOSED
+		event := WsCloseEvent{Code: statusCode, Reason: reason, WasClean: true}
+		go wsConn.handler.OnClose(event, wsConn)
+		return nil
+	}
+
+	if wsConn.state == STATE_CLOSED {
+		return nil
+	}
+
+	wsConn.state = STATE_CLOSING
 	closeFrame := NewCloseFrame(statusCode, reason, wsConn.isClient)
 	_, err := wsConn.connection.Write(closeFrame.Serialize())
 
@@ -111,7 +126,7 @@ func (wsConn *wsConnection) Pong(pingData []byte) error {
 }
 
 func (wsConn *wsConnection) SendText(text string) error {
-	if wsConn.closed {
+	if wsConn.state != STATE_OPEN {
 		return fmt.Errorf("connection closed")
 	}
 	frame := NewTextFrame(false, text).Serialize()
@@ -125,7 +140,7 @@ func (wsConn *wsConnection) SendText(text string) error {
 }
 
 func (wsConn *wsConnection) SendBinary(data []byte) error {
-	if wsConn.closed {
+	if wsConn.state != STATE_OPEN {
 		return fmt.Errorf("connection closed")
 	}
 	frame := NewBinaryFrame(false, data).Serialize()
@@ -140,7 +155,7 @@ func (wsConn *wsConnection) SendBinary(data []byte) error {
 
 func (wsConn *wsConnection) run() {
 	defer wsConn.connection.Close()
-	for !wsConn.closed {
+	for wsConn.state == STATE_OPEN {
 		wsConn.rcvNextMsg()
 	}
 }
@@ -155,16 +170,8 @@ func (wsconn *wsConnection) rcvNextMsg() {
 
 	if isCloseFrame(frame) {
 		log.Println("Received close frame")
-		code, err := getStatusCode(frame)
-		if err != nil {
-			wsconn.handleInternalError(err)
-			return
-		}
-		reason, err := getReason(frame)
-		if err != nil {
-			wsconn.handleInternalError(err)
-			return
-		}
+		code := getStatusCode(frame)
+		reason := getReason(frame)
 
 		wsconn.Close(code, reason)
 		return
@@ -258,23 +265,20 @@ func isPongFrame(frame WebSocketFrame) bool {
 	return frame.OpCode == OPCODE_PONG
 }
 
-func getStatusCode(frame WebSocketFrame) (uint16, error) {
-	if len(frame.Payload) == 0 {
-		return 0, fmt.Errorf("no status code in closing frame payload")
+func getStatusCode(frame WebSocketFrame) uint16 {
+	if len(frame.Payload) < 2 {
+		return 0
 	}
-	if len(frame.Payload) == 1 {
-		return uint16(frame.Payload[0]), nil
-	}
-	return binary.BigEndian.Uint16(frame.Payload[:2]), nil
+	return binary.BigEndian.Uint16(frame.Payload[:2])
 }
 
-func getReason(frame WebSocketFrame) (string, error) {
-	if len(frame.Payload) == 2 {
-		return "", nil
+func getReason(frame WebSocketFrame) string {
+	if len(frame.Payload) < 3 {
+		return ""
 	}
 	reasonData := frame.Payload[2:]
 
-	return string(reasonData), nil
+	return string(reasonData)
 }
 
 func (wsConn *wsConnection) handleInternalError(err error) {
