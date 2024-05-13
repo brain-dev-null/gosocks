@@ -111,12 +111,30 @@ func (wsConn *wsConnection) Pong(pingData []byte) error {
 }
 
 func (wsConn *wsConnection) SendText(text string) error {
-	// TODO implement!
+	if wsConn.closed {
+		return fmt.Errorf("connection closed")
+	}
+	frame := NewTextFrame(false, text).Serialize()
+	_, err := wsConn.connection.Write(frame)
+	if err != nil {
+		err := fmt.Errorf("error during send: %w", err)
+		wsConn.handleInternalError(err)
+		return err
+	}
 	return nil
 }
 
 func (wsConn *wsConnection) SendBinary(data []byte) error {
-	// TODO implement!
+	if wsConn.closed {
+		return fmt.Errorf("connection closed")
+	}
+	frame := NewBinaryFrame(false, data).Serialize()
+	_, err := wsConn.connection.Write(frame)
+	if err != nil {
+		err := fmt.Errorf("error during send: %w", err)
+		wsConn.handleInternalError(err)
+		return err
+	}
 	return nil
 }
 

@@ -85,6 +85,36 @@ func generateControlFrame(opCode byte, masked bool, data []byte) WebSocketFrame 
 	}
 }
 
+func NewTextFrame(masked bool, text string) WebSocketFrame {
+	var maskingKey []byte
+	if masked {
+		maskingKey = generateMaskingKey()
+	}
+
+	return WebSocketFrame{
+		Fin:        true,
+		OpCode:     0x1,
+		Masked:     masked,
+		MaskingKey: maskingKey,
+		Payload:    []byte(text),
+	}
+}
+
+func NewBinaryFrame(masked bool, data []byte) WebSocketFrame {
+	var maskingKey []byte
+	if masked {
+		maskingKey = generateMaskingKey()
+	}
+
+	return WebSocketFrame{
+		Fin:        true,
+		OpCode:     0x2,
+		Masked:     masked,
+		MaskingKey: maskingKey,
+		Payload:    data,
+	}
+}
+
 func DeserialzeWebSocketFrame(reader *bufio.Reader) (WebSocketFrame, error) {
 	wsFrame := WebSocketFrame{}
 
